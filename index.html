@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seafarers NRI Tools</title>
+
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
+</head>
+<body>
+
+<div class="login" id="loginBox">
+  <h2>Seafarer Login</h2>
+  <input type="text" id="user" placeholder="Enter your name">
+  <button onclick="login()">Login</button>
+</div>
+
+<div class="container hidden" id="app">
+<h1>Seafarers NRI & Financial Tools</h1>
+
+<div class="tool">
+<h2>NRI Days & Salary (FY Wise)</h2>
+
+<div class="grid">
+<input type="date" id="start">
+<input type="date" id="end">
+<input type="number" id="salary" placeholder="Salary">
+<select id="currency">
+  <option>INR</option>
+  <option>USD</option>
+</select>
+<input type="number" id="rate" placeholder="USD → INR">
+</div>
+
+<button onclick="addContract()">Add Contract</button>
+
+<table>
+<thead>
+<tr>
+<th>Financial Year</th>
+<th>Days</th>
+<th>Salary (₹)</th>
+</tr>
+</thead>
+<tbody id="fyTable"></tbody>
+</table>
+
+<button onclick="generatePDF()">Download PDF</button>
+
+<div class="result" id="summary"></div>
+</div>
+</div>
+
+<script>
+let contracts = JSON.parse(localStorage.getItem("contracts")) || [];
+let username = localStorage.getItem("user");
+
+function login(){
+  username = user.value;
+  localStorage.setItem("user", username);
+  loginBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  renderFY();
+}
+if(username){ login(); }
+
+function getFY(date){
+  let d = new Date(date);
+  let y = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  return `${y}-${y+1}`;
+}
+
+function addContract(){
+  let s = new Date(start.value);
+  let e = new Date(end.value);
+  let sal = Number(salary.value);
+  let cur = currency.value;
+  let r = Number(rate.value || 1);
+
+  let days = Math.floor((e - s)/(1000*60*60*24)) + 1;
+  let inr = cur === "USD" ? sal * r : sal;
+
+  contracts.push({ fy: getFY(s), days, inr });
+  localStorage.setItem("contracts", JSON.stringify(contracts));
+  renderFY();
+}
+
+function renderFY(){
+  let data = {};
+  contracts.forEach(c=>{
+    data[c.fy] = data[c.fy] || { days:0, salary:0 };
+    data[c.fy].days += c.days;
+    data[c.fy].salary += c.inr;
+  });
+
+  fyTable.innerHTML = "";
+  let totalDays = 0, totalSalary = 0;
+
+  for(let fy in data){
+    totalDays += data[fy].days;
+    totalSalary += data[fy].salary;
+    fyTable.innerHTML += `
+    <tr>
+      <td>${fy}</td>
+      <td>${data[fy].days}</td>
+      <td>${data[fy].salary.toFixed(0)}</td>
+    </tr>`;
+  }
+
+  let status = "";
+  if (totalDays >= 182) status = "NRI";
+  else if (totalDays >= 60) status = "RNOR";
+  else status = "Resident";
+
+  summary.innerHTML = `
+  Total Days: <b>${totalDays}</b><br>
+  Total Salary: <b>₹${totalSalary.toFixed(0)}</b><br>
+  Status: <b>${status}</b>`;
+}
+
+/* PDF */
+function generatePDF(){
+  const win = window.open();
+  win.document.write(`<h2>Seafarer NRI Report</h2>${summary.innerHTML}`);
+  win.print();
+}
+</script>
+
+</body>
+</html>
